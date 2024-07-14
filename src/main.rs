@@ -1,5 +1,5 @@
-use std::{cell::RefCell, collections::HashMap, fmt::Display, rc::Rc, process::exit};
 use clap::Parser;
+use std::{cell::RefCell, collections::HashMap, fmt::Display, process::exit, rc::Rc};
 
 #[derive(PartialEq, Eq, Clone, Copy, Hash)]
 enum Operation {
@@ -188,11 +188,11 @@ impl OperationDictionary {
                 }
                 "*" => {
                     operations.push(Operation::MULT);
-                    indexes.insert(Operation::MULT, operations.len() -1);
+                    indexes.insert(Operation::MULT, operations.len() - 1);
                 }
                 "/" => {
                     operations.push(Operation::DIV);
-                    indexes.insert(Operation::DIV, operations.len() -1);
+                    indexes.insert(Operation::DIV, operations.len() - 1);
                 }
                 _ => {
                     error = true;
@@ -202,7 +202,10 @@ impl OperationDictionary {
         if error {
             None
         } else {
-            Some(OperationDictionary{operations, indexes})
+            Some(OperationDictionary {
+                operations,
+                indexes,
+            })
         }
     }
 
@@ -215,7 +218,7 @@ impl OperationDictionary {
     }
 
     fn max_operation(&self) -> Operation {
-        self.operations[self.operations.len()-1]
+        self.operations[self.operations.len() - 1]
     }
 }
 
@@ -229,7 +232,10 @@ fn main() {
     let operations = operations_arg.split(",").map(|s| s.to_string()).collect();
     let operation_dictionary = OperationDictionary::new(&operations);
     if operation_dictionary.is_none() {
-        println!("unrecognised operations found, allowed=[+,-,*,/], provided={:?}", operations);
+        println!(
+            "unrecognised operations found, allowed=[+,-,*,/], provided={:?}",
+            operations
+        );
         exit(1);
     }
     let operation_dictionary = operation_dictionary.unwrap();
@@ -276,7 +282,9 @@ fn main() {
             }
 
             let mut op: usize = 0;
-            while op < composed.ops.len() && *composed.ops[op].borrow() == operation_dictionary.max_operation() {
+            while op < composed.ops.len()
+                && *composed.ops[op].borrow() == operation_dictionary.max_operation()
+            {
                 composed.ops[op].replace(operation_dictionary.operation(0));
                 op += 1;
             }
@@ -289,7 +297,14 @@ fn main() {
         }
     }
 
-    for v in 1..(maximum_composed+1) {
-        println!("{} -> {}", v, dictionary.get(&v).map(|(size, options)| format!("({}) {:?}", size, options)).unwrap_or("None".to_string()));
+    for v in 1..(maximum_composed + 1) {
+        println!(
+            "{} -> {}",
+            v,
+            dictionary
+                .get(&v)
+                .map(|(size, options)| format!("({}) {:?}", size, options))
+                .unwrap_or("None".to_string())
+        );
     }
 }
