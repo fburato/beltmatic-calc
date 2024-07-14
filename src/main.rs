@@ -1,6 +1,7 @@
-use std::{cell::RefCell, collections::HashMap, fmt::Display, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, fmt::Display, rc::Rc, process::exit};
+use clap::Parser;
 
-#[derive(PartialEq, Eq, Clone, Copy)]
+#[derive(PartialEq, Eq, Clone, Copy, Hash)]
 enum Operation {
     ADD,
     MULT,
@@ -8,10 +9,14 @@ enum Operation {
     SUB,
 }
 
-impl Operation {
-    fn index(&self) -> usize {
-        *self as usize
-    }
+#[derive(Parser, Debug)]
+struct Args {
+    #[arg(long)]
+    max_number: i32,
+    #[arg(long)]
+    max_size: usize,
+    #[arg(long)]
+    operations: Option<String>,
 }
 
 impl Display for Operation {
@@ -161,32 +166,79 @@ fn calculate_parenthesisations(
     return result;
 }
 
-fn op_index(i: usize) -> Operation {
-    match i {
-        0 => Operation::ADD,
-        1 => Operation::SUB,
-        2 => Operation::MULT,
-        _ => Operation::DIV,
-    }
+struct OperationDictionary {
+    operations: Vec<Operation>,
+    indexes: HashMap<Operation, usize>,
 }
 
-fn index_to_op(operation: &Operation) -> usize {
-    match operation {
-        Operation::ADD => 0,
-        Operation::SUB => 1,
-        Operation::MULT => 2,
-        _ => 3,
+impl OperationDictionary {
+    fn new(options: &Vec<String>) -> Option<OperationDictionary> {
+        let mut operations: Vec<Operation> = vec![];
+        let mut indexes: HashMap<Operation, usize> = HashMap::new();
+        let mut error = false;
+        for option in options.iter() {
+            match option.as_str() {
+                "+" => {
+                    operations.push(Operation::ADD);
+                    indexes.insert(Operation::ADD, operations.len() - 1);
+                }
+                "-" => {
+                    operations.push(Operation::SUB);
+                    indexes.insert(Operation::SUB, operations.len() - 1);
+                }
+                "*" => {
+                    operations.push(Operation::MULT);
+                    indexes.insert(Operation::MULT, operations.len() -1);
+                }
+                "/" => {
+                    operations.push(Operation::DIV);
+                    indexes.insert(Operation::DIV, operations.len() -1);
+                }
+                _ => {
+                    error = true;
+                }
+            }
+        }
+        if error {
+            None
+        } else {
+            Some(OperationDictionary{operations, indexes})
+        }
+    }
+
+    fn operation(&self, index: usize) -> Operation {
+        self.operations[index]
+    }
+
+    fn index(&self, operation: &Operation) -> usize {
+        *self.indexes.get(operation).unwrap()
+    }
+
+    fn max_operation(&self) -> Operation {
+        self.operations[self.operations.len()-1]
     }
 }
 
 fn main() {
-    let maximum_number = 7;
-    let maximum_size = 5;
-    let mut dictionary: HashMap<i32, String> = HashMap::new();
+    let args = Args::parse();
+    if args.max_number <= 0 {
+        println!("max_number must be > 0, was {}", args.max_number);
+        exit(1);
+    }
+    let operations_arg = args.operations.unwrap_or("+,-,*,/".to_string());
+    let operations = operations_arg.split(",").map(|s| s.to_string()).collect();
+    let operation_dictionary = OperationDictionary::new(&operations);
+    if operation_dictionary.is_none() {
+        println!("unrecognised operations found, allowed=[+,-,*,/], provided={:?}", operations);
+        exit(1);
+    }
+    let operation_dictionary = operation_dictionary.unwrap();
+    let maximum_number = args.max_number;
+    let maximum_size = args.max_size;
+    let mut dictionary: HashMap<i32, (usize, Vec<String>)> = HashMap::new();
     let mut maximum_composed = 1;
     for size in 1..(maximum_size + 1) {
         let composed = make_options(size);
-        let op_limit: usize = 3;
         let mut op_finished = false;
         while !op_finished {
             for i in 0..composed.ints.len() {
@@ -201,7 +253,12 @@ fn main() {
                             maximum_composed = v;
                         }
                         if !dictionary.contains_key(&v) {
-                            dictionary.insert(v, format!("{}", alternative));
+                            dictionary.insert(v, (size, vec![format!("{}", alternative)]));
+                        } else {
+                            let (max_size, options) = dictionary.get_mut(&v).unwrap();
+                            if *max_size == size {
+                                options.push(format!("{}", alternative));
+                            }
                         }
                     }
                 }
@@ -219,13 +276,13 @@ fn main() {
             }
 
             let mut op: usize = 0;
-            while op < composed.ops.len() && *composed.ops[op].borrow() == op_index(op_limit) {
-                composed.ops[op].replace(op_index(0));
+            while op < composed.ops.len() && *composed.ops[op].borrow() == operation_dictionary.max_operation() {
+                composed.ops[op].replace(operation_dictionary.operation(0));
                 op += 1;
             }
             if op < composed.ops.len() {
-                let current_op = index_to_op(&composed.ops[op].borrow().clone());
-                composed.ops[op].replace(op_index(current_op + 1));
+                let current_op = operation_dictionary.index(&composed.ops[op].borrow());
+                composed.ops[op].replace(operation_dictionary.operation(current_op + 1));
             } else {
                 op_finished = true;
             }
@@ -233,6 +290,6 @@ fn main() {
     }
 
     for v in 1..(maximum_composed+1) {
-        println!("{} - {}", v, dictionary.get(&v).map(|s| s.as_str()).unwrap_or("None"));
+        println!("{} -> {}", v, dictionary.get(&v).map(|(size, options)| format!("({}) {:?}", size, options)).unwrap_or("None".to_string()));
     }
 }
